@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import api from '../lib/api';
 
 export function PlayerStats() {
   const [players, setPlayers] = useState([]);
 
   useEffect(() => {
-    fetch('/api/players')
-      .then(res => res.json())
+    api.get('/players')
+      .then(({ data }) => data)
       .then(data => {
         // Enhance with mock data
         const enhancedPlayers = data.map((p) => ({

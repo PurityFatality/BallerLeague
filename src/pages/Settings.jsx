@@ -11,10 +11,13 @@ import {
   ChevronRight,
   Search
 } from 'lucide-react';
+import api from '../lib/api';
+import { getCurrentUser, isAdminUser } from '../lib/auth';
 
 
 export function Settings() {
   const [activeTab, setActiveTab] = useState('leagues');
+  const canManage = isAdminUser(getCurrentUser());
 
   return (
     <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-50 dark:bg-slate-950">
@@ -24,6 +27,9 @@ export function Settings() {
             League Management
           </h1>
           <p className="text-slate-500 mt-1">Configure leagues, seasons, teams, and players.</p>
+          {!canManage ? (
+            <p className="text-xs text-slate-500 mt-2">These controls are visible but disabled. Only league admins/system admins can use these features.</p>
+          ) : null}
         </div>
 
         <div className="flex flex-col md:flex-row gap-8">
@@ -59,10 +65,12 @@ export function Settings() {
 
           {/* Content Area */}
           <div className="flex-1 bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6">
-            {activeTab === 'leagues' && <LeaguesManager />}
-            {activeTab === 'seasons' && <SeasonsManager />}
-            {activeTab === 'teams' && <TeamsManager />}
-            {activeTab === 'players' && <PlayersManager />}
+            <div className={!canManage ? 'opacity-50 pointer-events-none select-none' : ''}>
+              {activeTab === 'leagues' && <LeaguesManager />}
+              {activeTab === 'seasons' && <SeasonsManager />}
+              {activeTab === 'teams' && <TeamsManager />}
+              {activeTab === 'players' && <PlayersManager />}
+            </div>
           </div>
         </div>
       </div>
@@ -94,17 +102,12 @@ function LeaguesManager() {
   const [formData, setFormData] = useState({ name: '', country: '', logo: '' });
 
   useEffect(() => {
-    fetch('/api/leagues').then(res => res.json()).then(setLeagues);
+    api.get('/leagues').then(({ data }) => setLeagues(data));
   }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const res = await fetch('/api/leagues', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData)
-    });
-    const newLeague = await res.json();
+    const { data: newLeague } = await api.post('/leagues', formData);
     setLeagues([...leagues, newLeague]);
     setFormData({ name: '', country: '', logo: '' });
   };
@@ -167,20 +170,15 @@ function SeasonsManager() {
   const [formData, setFormData] = useState({ league_id: '', name: '', start_date: '', end_date: '' });
 
   useEffect(() => {
-    fetch('/api/seasons').then(res => res.json()).then(setSeasons);
-    fetch('/api/leagues').then(res => res.json()).then(setLeagues);
+    api.get('/seasons').then(({ data }) => setSeasons(data));
+    api.get('/leagues').then(({ data }) => setLeagues(data));
   }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const res = await fetch('/api/seasons', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData)
-    });
-    const newSeason = await res.json();
+    await api.post('/seasons', formData);
     // Refresh to get league name join
-    fetch('/api/seasons').then(res => res.json()).then(setSeasons);
+    api.get('/seasons').then(({ data }) => setSeasons(data));
     setFormData({ ...formData, name: '' });
   };
 
@@ -255,18 +253,13 @@ function TeamsManager() {
   const [assignData, setAssignData] = useState({ team_id: '', season_id: '' });
 
   useEffect(() => {
-    fetch('/api/teams').then(res => res.json()).then(setTeams);
-    fetch('/api/seasons').then(res => res.json()).then(setSeasons);
+    api.get('/teams').then(({ data }) => setTeams(data));
+    api.get('/seasons').then(({ data }) => setSeasons(data));
   }, []);
 
   const handleCreateTeam = async (e) => {
     e.preventDefault();
-    const res = await fetch('/api/teams', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData)
-    });
-    const newTeam = await res.json();
+    const { data: newTeam } = await api.post('/teams', formData);
     setTeams([...teams, newTeam]);
     setFormData({ name: '', stadium: '', city: '' });
   };
@@ -275,11 +268,7 @@ function TeamsManager() {
     e.preventDefault();
     if (!assignData.season_id || !assignData.team_id) return;
     
-    await fetch(`/api/seasons/${assignData.season_id}/teams`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ team_id: assignData.team_id })
-    });
+    await api.post(`/seasons/${assignData.season_id}/teams`, { team_id: assignData.team_id });
     alert('Team assigned to season successfully');
     setAssignData({ team_id: '', season_id: '' });
   };
@@ -375,19 +364,14 @@ function PlayersManager() {
   const [assignData, setAssignData] = useState({ player_id: '', team_id: '', season_id: '' });
 
   useEffect(() => {
-    fetch('/api/players').then(res => res.json()).then(setPlayers);
-    fetch('/api/teams').then(res => res.json()).then(setTeams);
-    fetch('/api/seasons').then(res => res.json()).then(setSeasons);
+    api.get('/players').then(({ data }) => setPlayers(data));
+    api.get('/teams').then(({ data }) => setTeams(data));
+    api.get('/seasons').then(({ data }) => setSeasons(data));
   }, []);
 
   const handleCreatePlayer = async (e) => {
     e.preventDefault();
-    const res = await fetch('/api/players', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData)
-    });
-    const newPlayer = await res.json();
+    const { data: newPlayer } = await api.post('/players', formData);
     setPlayers([...players, newPlayer]);
     setFormData({ name: '', position: '', number: '', nationality: '' });
   };
@@ -396,13 +380,9 @@ function PlayersManager() {
     e.preventDefault();
     if (!assignData.team_id || !assignData.player_id || !assignData.season_id) return;
     
-    await fetch(`/api/teams/${assignData.team_id}/players`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        player_id: assignData.player_id,
-        season_id: assignData.season_id
-      })
+    await api.post(`/teams/${assignData.team_id}/players`, {
+      player_id: assignData.player_id,
+      season_id: assignData.season_id
     });
     alert('Player added to team roster successfully');
     setAssignData({ player_id: '', team_id: '', season_id: '' });

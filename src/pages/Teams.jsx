@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { MapPin, Users, Trophy, Star } from 'lucide-react';
+import api from '../lib/api';
 
 export function Teams() {
   const [teams, setTeams] = useState([]);
 
   useEffect(() => {
-    fetch('/api/teams')
-      .then(res => res.json())
+    api.get('/teams')
+      .then(({ data }) => data)
       .then(data => {
         // Enhance with mock data for visual consistency until DB has these fields
         const enhancedTeams = data.map((t) => ({

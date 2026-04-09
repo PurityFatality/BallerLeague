@@ -5,11 +5,17 @@ import {
   Trophy, 
   Users, 
   Activity, 
-  RefreshCw
+  RefreshCw,
+  Calendar1,
+  Settings
 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
+import { getCurrentUser, isAdminUser } from '../lib/auth';
 
 export function Sidebar() {
+  const user = getCurrentUser();
+  const canAccessAdmin = isAdminUser(user);
+
   return (
     <aside className="w-64 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 flex flex-col gap-6 hidden md:flex">
       <div className="flex flex-col gap-1">
@@ -24,6 +30,14 @@ export function Sidebar() {
         <NavItem to="/standings" icon={<Trophy size={20} />} label="Standings" />
         <NavItem to="/teams" icon={<Users size={20} />} label="Teams" />
         <NavItem to="/stats" icon={<Activity size={20} />} label="Player Stats" />
+        <NavItem to="/events" icon={<Calendar1 size={20} />} label="Events" />
+        <NavItem
+          to="/settings"
+          icon={<Settings size={20} />}
+          label="Settings"
+          disabled={!canAccessAdmin}
+          note={!canAccessAdmin ? 'Admins only' : ''}
+        />
       </nav>
       
       <div className="mt-auto p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-800/30">
@@ -39,7 +53,17 @@ export function Sidebar() {
   );
 }
 
-function NavItem({ icon, label, to }) {
+function NavItem({ icon, label, to, disabled = false, note = '' }) {
+  if (disabled) {
+    return (
+      <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 bg-slate-50/60 dark:bg-slate-800/40 cursor-not-allowed">
+        {icon}
+        <span className="text-sm font-medium">{label}</span>
+        {note ? <span className="ml-auto text-[10px] uppercase tracking-wide">{note}</span> : null}
+      </div>
+    );
+  }
+
   return (
     <NavLink 
       to={to} 
