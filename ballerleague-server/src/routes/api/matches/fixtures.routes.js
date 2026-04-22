@@ -5,7 +5,6 @@ import { Match } from '../../../models/match.model.js';
 import { Team } from '../../../models/team.model.js';
 import { Season } from '../../../models/season.model.js';
 import { Player } from '../../../models/player.model.js';
-import { Event } from '../../../models/event.model.js';
 import {
   createManualMatchValidator,
   matchIdParamValidator,
@@ -18,6 +17,7 @@ import {
   updateMatchStatusValidator
 } from '../../../validators/match.validators.js';
 import { enrichMatches, normalizeVenuePayload, recomputeAndPersistPlayerStatsForSeason } from './shared.js';
+import { notifyMatchCreated, notifyMatchDeleted, notifyMatchUpdated } from '../../../services/email-notifications.service.js';
 
 const router = Router();
 
@@ -119,6 +119,7 @@ router.post(
     });
 
     const [enriched] = await enrichMatches([created]);
+    void notifyMatchCreated(enriched);
     return res.status(201).json(enriched);
   }
 );
@@ -175,6 +176,7 @@ router.patch(
     }
 
     const [enriched] = await enrichMatches([updated]);
+    void notifyMatchUpdated(enriched);
     return res.json(enriched);
   }
 );
@@ -394,12 +396,12 @@ router.delete(
       return res.status(404).json({ message: 'Match not found' });
     }
 
-    await Promise.all([
-      Match.deleteOne({ id: matchId }),
-      Event.deleteOne({ id: `match-fixture-${matchId}` })
-    ]);
+    const [enrichedMatch] = await enrichMatches([match]);
+
+    await Match.deleteOne({ id: matchId });
 
     await recomputeAndPersistPlayerStatsForSeason(match.season_id);
+    void notifyMatchDeleted(enrichedMatch);
 
     return res.json({
       success: true,

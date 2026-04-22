@@ -1,11 +1,14 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BarChart3, Shield, Save, Trash2 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { getCurrentUser, hasAnyRole } from '../lib/auth';
 import api from '../lib/api';
 import { formatDateTime } from '../lib/date';
 
 export function MatchEntryCard() {
   const canEditResult = hasAnyRole(getCurrentUser(), ['league_admin', 'system_admin']);
+  const [searchParams] = useSearchParams();
+  const initialMatchIdRef = useRef(searchParams.get('matchId') || '');
   const [matches, setMatches] = useState([]);
   const [players, setPlayers] = useState([]);
   const [selectedMatchId, setSelectedMatchId] = useState('');
@@ -95,7 +98,8 @@ export function MatchEntryCard() {
       setPlayers(Array.isArray(allPlayersResponse.data) ? allPlayersResponse.data : []);
 
       if (matchRows.length > 0) {
-        const currentMatch = matchRows.find((match) => String(match.id) === String(selectedMatchId)) || matchRows[0];
+        const preferredMatchId = selectedMatchId || initialMatchIdRef.current;
+        const currentMatch = matchRows.find((match) => String(match.id) === String(preferredMatchId)) || matchRows[0];
         setSelectedMatchId(String(currentMatch.id));
         setHomeScore(String(currentMatch.home_score ?? 0));
         setAwayScore(String(currentMatch.away_score ?? 0));

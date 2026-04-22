@@ -1,16 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, Clock, MapPin, RefreshCw } from 'lucide-react';
+import { ChevronDown, Clock, MapPin } from 'lucide-react';
 import api from '../lib/api';
 import { getCurrentUser, isAdminUser } from '../lib/auth';
 import { formatDateTime, toDateInputValue } from '../lib/date';
 import { VenuePickerModal } from '../components/VenuePickerModal';
 import { VenueDetailsModal } from '../components/VenueDetailsModal';
-
-const DEFAULT_EVENT_TIMEZONE = 'Europe/London';
-
-function buildMatchEventId(matchId) {
-  return `match-fixture-${matchId}`;
-}
+import { EmailSubscriptions } from '../components/EmailSubscriptions';
 
 function toVenueModel(matchOrFormVenue, venueDetails) {
   if (venueDetails && typeof venueDetails === 'object') {
@@ -65,40 +60,15 @@ function AccordionSection({ title, open, onToggle, children, subtitle }) {
   );
 }
 
-function buildEventPayloadFromMatch(match) {
-  const startDate = new Date(match.kickoff_at);
-  const endDate = new Date(startDate.getTime() + 2 * 60 * 60 * 1000);
-
-  return {
-    id: buildMatchEventId(match.id),
-    title: `${match.home_team_name} vs ${match.away_team_name}`,
-    description: '',
-    location: match.venue || '',
-    start: {
-      dateTime: startDate.toISOString(),
-      timeZone: DEFAULT_EVENT_TIMEZONE
-    },
-    end: {
-      dateTime: endDate.toISOString(),
-      timeZone: DEFAULT_EVENT_TIMEZONE
-    },
-    allDay: false,
-    googleCalendarEventId: null
-  };
-}
-
 export function Matches() {
   const [playedMatches, setPlayedMatches] = useState([]);
   const [upcomingMatches, setUpcomingMatches] = useState([]);
   const [adminMatches, setAdminMatches] = useState([]);
-  const [events, setEvents] = useState([]);
   const [teams, setTeams] = useState([]);
   const [seasons, setSeasons] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [syncMessage, setSyncMessage] = useState('');
   const [isAdminControlsOpen, setIsAdminControlsOpen] = useState(true);
   const [isAdminManagementOpen, setIsAdminManagementOpen] = useState(false);
   const [isVenuePickerOpen, setIsVenuePickerOpen] = useState(false);
@@ -150,17 +120,12 @@ export function Matches() {
     setSeasons(Array.isArray(allSeasons) ? allSeasons : []);
   }
 
-  async function loadEvents() {
-    const { data } = await api.get('/matches/calendar');
-    setEvents(Array.isArray(data) ? data : []);
-  }
-
   async function loadData() {
     setIsLoading(true);
     setErrorMessage('');
 
     try {
-      await Promise.all([loadPublicFixtures(), loadAdminFixtures(), loadEvents()]);
+      await Promise.all([loadPublicFixtures(), loadAdminFixtures()]);
     } catch (error) {
       setErrorMessage(error.response?.data?.message || 'Failed to load fixture data');
     } finally {
@@ -180,25 +145,12 @@ export function Matches() {
     return adminMatches;
   }, [adminMatches, canManageFixtures]);
 
-  const eventsById = useMemo(() => {
-    const map = new Map();
-    for (const event of events) {
-      if (event?.id) {
-        map.set(event.id, event);
-      }
-    }
-    return map;
-  }, [events]);
-
   async function handleCreateMatch(event) {
     event.preventDefault();
     setIsSubmitting(true);
     setErrorMessage('');
 
     const kickoffAtLocal = `${createForm.kickoff_date}T${createForm.kickoff_time}`;
-    const kickoffDate = new Date(kickoffAtLocal);
-    const isPastFixture = !Number.isNaN(kickoffDate.getTime()) && kickoffDate < new Date();
-
     try {
       await api.post('/matches/manual', {
         season_id: Number(createForm.season_id),
@@ -220,10 +172,6 @@ export function Matches() {
         venue_details: null
       });
       await loadData();
-
-      if (isPastFixture) {
-        setSyncMessage('Past-dated fixture created and listed in Current/Played Fixtures.');
-      }
     } catch (error) {
       setErrorMessage(error.response?.data?.message || 'Failed to create fixture');
     } finally {
@@ -324,36 +272,11 @@ export function Matches() {
 
   function openVenueDetails(match) {
     const venue = getVenueFromMatch(match);
-    setDetailsVenue(venue);
-  }
-
-  async function handleSyncMatch(match) {
-    setIsSyncing(true);
-    setErrorMessage('');
-    setSyncMessage('');
-
-    const eventId = buildMatchEventId(match.id);
-    const existingEvent = eventsById.get(eventId);
-
-    try {
-      if (!existingEvent) {
-        const payload = buildEventPayloadFromMatch(match);
-        const { data } = await api.post('/matches/calendar', payload);
-        setEvents((prev) => [data, ...prev]);
-        setSyncMessage(`Match ${match.id} scheduled for Google Calendar sync.`);
-        return;
-      }
-
-      if (existingEvent.googleCalendarEventId) {
-        setSyncMessage(`Match ${match.id} is already synced to Google Calendar.`);
-      } else {
-        setSyncMessage(`Match ${match.id} is ready for Google Calendar sync. API hook will be added next.`);
-      }
-    } catch (error) {
-      setErrorMessage(error.response?.data?.message || 'Failed to schedule match for Google Calendar sync');
-    } finally {
-      setIsSyncing(false);
-    }
+    setDetailsVenue({
+      ...venue,
+      kickoff_at: match.kickoff_at,
+      status: match.status
+    });
   }
 
   return (
@@ -366,17 +289,12 @@ export function Matches() {
             </h1>
             <p className="text-slate-500 mt-1">Create, edit, delete, and browse fixtures.</p>
           </div>
+          <EmailSubscriptions />
         </div>
 
         {errorMessage ? (
           <div className="rounded-lg border border-rose-300 bg-rose-50 text-rose-700 px-4 py-3 text-sm dark:bg-rose-900/20 dark:text-rose-300 dark:border-rose-900/40">
             {errorMessage}
-          </div>
-        ) : null}
-
-        {syncMessage ? (
-          <div className="rounded-lg border border-blue-300 bg-blue-50 text-blue-700 px-4 py-3 text-sm dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-900/40">
-            {syncMessage}
           </div>
         ) : null}
 
@@ -525,8 +443,6 @@ export function Matches() {
             <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Upcoming Fixtures</h2>
           </div>
 
-          <p className="text-[11px] text-slate-500">Any signed-in user can sync a fixture to Google Calendar.</p>
-
           {isLoading ? (
             <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 text-sm text-slate-500">
               Loading fixtures...
@@ -569,23 +485,9 @@ export function Matches() {
                       </button>
                     </div>
 
-                    <span className={`text-[11px] font-semibold uppercase px-2 py-1 rounded-full ${eventsById.get(buildMatchEventId(match.id))?.googleCalendarEventId ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'}`}>
-                      {eventsById.get(buildMatchEventId(match.id))?.googleCalendarEventId ? 'Synced' : 'Not Synced'}
-                    </span>
-
                     <span className="text-[11px] font-semibold uppercase px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                       {match.status}
                     </span>
-
-                    <button
-                      type="button"
-                      onClick={() => handleSyncMatch(match)}
-                      disabled={isSyncing}
-                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-200 text-blue-700 dark:text-blue-300 dark:border-blue-900/40 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50 disabled:cursor-not-allowed font-semibold px-3 py-1.5 text-xs transition-colors"
-                    >
-                      <RefreshCw size={12} />
-                      Sync to Google Calendar
-                    </button>
                   </div>
                 </article>
               ))}

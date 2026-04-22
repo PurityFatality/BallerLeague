@@ -312,7 +312,7 @@ export function Overview() {
                       </span>
                     </td>
                     <td className="px-4 py-4 text-right">
-                      <Link to="/results" className="text-slate-400 hover:text-blue-600 transition-colors">Details</Link>
+                      <Link to={`/results?matchId=${match.id}`} className="text-slate-400 hover:text-blue-600 transition-colors">Details</Link>
                     </td>
                   </tr>
                 ))}

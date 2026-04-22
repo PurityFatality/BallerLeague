@@ -200,19 +200,6 @@ export async function recomputeAndPersistPlayerStatsForSeason(seasonId) {
   }
 }
 
-export function mapEventDocument(eventDoc) {
-  return {
-    id: eventDoc.id,
-    title: eventDoc.title,
-    description: eventDoc.description,
-    location: eventDoc.location,
-    start: eventDoc.start,
-    end: eventDoc.end,
-    allDay: eventDoc.allDay,
-    googleCalendarEventId: eventDoc.googleCalendarEventId
-  };
-}
-
 export function mapNominatimPlace(item) {
   const latitude = Number(item.lat);
   const longitude = Number(item.lon);
