@@ -4,14 +4,18 @@ import { getCurrentUser } from '../lib/auth';
 
 export function EmailSubscriptions() {
   const user = getCurrentUser();
+  const userId = user?.id || user?._id || user?.sub || '';
+  const userEmail = user?.email || '';
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [isEmailEntryOpen, setIsEmailEntryOpen] = useState(false);
+  const [emailInput, setEmailInput] = useState(userEmail);
 
   useEffect(() => {
     async function loadSubscription() {
-      if (!user) {
+      if (!userId) {
         setIsLoading(false);
         return;
       }
@@ -19,6 +23,7 @@ export function EmailSubscriptions() {
       try {
         const { data } = await api.get('/email-subscriptions/me');
         setIsSubscribed(Boolean(data?.subscribed));
+        setEmailInput(data?.email || userEmail || '');
       } catch (error) {
         setErrorMessage(error.response?.data?.message || 'Failed to load email subscription status');
       } finally {
@@ -27,10 +32,16 @@ export function EmailSubscriptions() {
     }
 
     loadSubscription();
-  }, [user]);
+  }, [userId, userEmail]);
 
   async function handleToggleSubscription() {
     if (!user || isSaving) {
+      return;
+    }
+
+    if (!isSubscribed) {
+      setErrorMessage('');
+      setIsEmailEntryOpen(true);
       return;
     }
 
@@ -38,9 +49,40 @@ export function EmailSubscriptions() {
     setErrorMessage('');
 
     try {
-      const nextValue = !isSubscribed;
-      const { data } = await api.put('/email-subscriptions/me', { subscribed: nextValue });
+      const { data } = await api.put('/email-subscriptions/me', { subscribed: false });
       setIsSubscribed(Boolean(data?.subscribed));
+      setIsEmailEntryOpen(false);
+    } catch (error) {
+      setErrorMessage(error.response?.data?.message || 'Failed to update email subscription');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleSubscribeWithEmail(event) {
+    event.preventDefault();
+
+    if (!user || isSaving) {
+      return;
+    }
+
+    const normalizedEmail = emailInput.trim();
+    if (!normalizedEmail) {
+      setErrorMessage('Please enter an email address to subscribe.');
+      return;
+    }
+
+    setIsSaving(true);
+    setErrorMessage('');
+
+    try {
+      const { data } = await api.put('/email-subscriptions/me', {
+        subscribed: true,
+        email: normalizedEmail
+      });
+      setIsSubscribed(Boolean(data?.subscribed));
+      setEmailInput(data?.email || normalizedEmail);
+      setIsEmailEntryOpen(false);
     } catch (error) {
       setErrorMessage(error.response?.data?.message || 'Failed to update email subscription');
     } finally {
@@ -67,6 +109,35 @@ export function EmailSubscriptions() {
           Subscribe to email notifications to receive updates when matches are created, have their venue/date/time changed, or are deleted.
         </p>
       </div>
+
+      {isEmailEntryOpen && !isSubscribed ? (
+        <form onSubmit={handleSubscribeWithEmail} className="flex items-center gap-2 max-w-sm">
+          <input
+            type="email"
+            required
+            value={emailInput}
+            onChange={(event) => setEmailInput(event.target.value)}
+            placeholder="Enter notification email"
+            className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs"
+          />
+          <button
+            type="submit"
+            disabled={isSaving}
+            className="rounded-md bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-xs font-semibold px-2.5 py-1.5"
+          >
+            {isSaving ? 'Saving...' : 'Save'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsEmailEntryOpen(false)}
+            disabled={isSaving}
+            className="rounded-md border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold px-2.5 py-1.5"
+          >
+            Cancel
+          </button>
+        </form>
+      ) : null}
+
       {errorMessage ? <p className="text-xs text-rose-600">{errorMessage}</p> : null}
     </div>
   );
