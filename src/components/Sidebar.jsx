@@ -24,7 +24,6 @@ export function Sidebar() {
         <div className="flex flex-col gap-1">
           <h3 className="text-blue-600 text-xs font-bold uppercase tracking-wider px-3">Baller League</h3>
           <p className="text-slate-900 dark:text-slate-100 text-sm font-semibold px-3">Baller League Dashboard</p>
-          <p className="text-slate-500 text-xs px-3">2023/24 Season</p>
         </div>
         
         <nav className="flex flex-col gap-1">
